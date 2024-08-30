@@ -286,15 +286,6 @@ class ElectricShopApp(QMainWindow):
             self.stock_table.setItem(i, 1, QTableWidgetItem(f"{product[1]:.2f}"))
             self.stock_table.setItem(i, 2, QTableWidgetItem(str(product[2])))
 
-    def prev_page(self):
-        if self.page > 1:
-            self.page -= 1
-            self.refresh_stock()
-
-    def next_page(self):
-        self.page += 1
-        self.refresh_stock()
-
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     mainWin = ElectricShopApp()
