@@ -6,7 +6,7 @@ import csv
 class ElectricShopApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('Electric Shop Stock Monitoring')
+        self.setWindowTitle('SHREE UMIYA SWITCHGEAR STOCK MONITORING')
         self.setGeometry(100, 100, 800, 600)
         self.page = 1
         self.page_size = 100
