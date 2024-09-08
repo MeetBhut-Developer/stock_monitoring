@@ -127,7 +127,7 @@ class ElectricShopApp(QMainWindow):
                     try:
                         price = float(price.replace(',','').strip())
                         unit=str(unit)
-                        stock = int(str(stock).replace(',','').strip())
+                        stock = int(float(str(stock).replace(',','').strip()))
                         cursor.execute("SELECT stock FROM products WHERE name = ?", (name,))
                         existing_product = cursor.fetchone()
                         if existing_product:
