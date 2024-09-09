@@ -107,7 +107,20 @@ class ElectricShopApp(QMainWindow):
         self.csv_upload_button.clicked.connect(self.upload_csv)
         self.form_layout.addRow(self.csv_upload_button)
 
+        # All over Price
+        self.all_over_price = QPushButton('All Over Price')
+        self.all_over_price.clicked.connect(self.total_price_count)
+        self.form_layout.addRow(self.all_over_price)
+
         self.layout.addLayout(self.form_layout)
+
+    def total_price_count(self):
+        conn = sqlite3.connect('stock_database.db')
+        cursor = conn.cursor()
+        cursor.execute("SELECT sum(total_price) FROM products;")
+        result = round(cursor.fetchone()[0],4)
+        return QMessageBox.information(self, "Success", f"{result}")
+        
 
     def upload_csv(self):
         file_name, _ = QFileDialog.getOpenFileName(self, "Open CSV File", "", "CSV Files (*.csv)")
