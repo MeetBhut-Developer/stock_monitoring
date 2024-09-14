@@ -1,7 +1,4 @@
 app_env
 HIREN.csv
 main_row_layout.py
-build
-dist
-main.spec
 size_check.py
