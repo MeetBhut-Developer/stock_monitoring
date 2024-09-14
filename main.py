@@ -7,7 +7,8 @@ class ElectricShopApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle('SHREE UMIYA SWITCHGEAR STOCK MONITORING')
-        self.setGeometry(100, 100, 800, 600)
+        self.setGeometry(150, 150, 1200, 850)
+        
         self.page = 1
         self.page_size = 100
 
@@ -115,11 +116,11 @@ class ElectricShopApp(QMainWindow):
         self.layout.addLayout(self.form_layout)
 
     def total_price_count(self):
-        conn = sqlite3.connect('stock_database.db')
-        cursor = conn.cursor()
-        cursor.execute("SELECT sum(total_price) FROM products;")
-        result = round(cursor.fetchone()[0],4)
-        return QMessageBox.information(self, "Success", f"{result}")
+        with sqlite3.connect('stock_database.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT sum(total_price) FROM products;")
+            result = round(cursor.fetchone()[0],4)
+        return QMessageBox.information(self, "TOTALS", f"{result}")
         
 
     def upload_csv(self):
