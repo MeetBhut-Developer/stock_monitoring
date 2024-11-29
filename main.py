@@ -1,13 +1,15 @@
 import sys
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QPushButton, QTableWidget, QTableWidgetItem, QLineEdit, QFormLayout, QMessageBox, QHBoxLayout, QFileDialog #type:ignore
+from PyQt5.QtCore import Qt
 import sqlite3
 import csv
 
 class ElectricShopApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('Electric Shop Stock Monitoring')
-        self.setGeometry(100, 100, 800, 600)
+        self.setWindowTitle('SHREE UMIYA SWITCHGEAR STOCK MONITORING')
+        self.setGeometry(150, 150, 1200, 850)
+        
         self.page = 1
         self.page_size = 100
 
@@ -30,8 +32,8 @@ class ElectricShopApp(QMainWindow):
 
         # Table to show stock
         self.stock_table = QTableWidget()
-        self.stock_table.setColumnCount(3)
-        self.stock_table.setHorizontalHeaderLabels(['Product Name', 'Price', 'Stock Count'])
+        self.stock_table.setColumnCount(5)
+        self.stock_table.setHorizontalHeaderLabels(['Product Name','Unit','Stock Count','Unit Price','Total Price'])
         self.layout.addWidget(self.stock_table)
 
         # Forms for updating, selling, and adding products
@@ -47,8 +49,10 @@ class ElectricShopApp(QMainWindow):
             CREATE TABLE IF NOT EXISTS products (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
-                price REAL NOT NULL,
-                stock INTEGER NOT NULL
+                unit TEXT NOT NULL,
+                stock INTEGER NOT NULL,
+                unit_price REAL NOT NULL,
+                total_price REAL NOT NULL
             )
         ''')
         conn.commit()
@@ -69,22 +73,26 @@ class ElectricShopApp(QMainWindow):
 
         # Add new product form
         self.add_name_input = QLineEdit()
-        self.add_price_input = QLineEdit()
+        self.add_unit_input = QLineEdit()
         self.add_stock_input = QLineEdit()
+        self.add_unit_price = QLineEdit()
         self.form_layout.addRow('New Product Name:', self.add_name_input)
-        self.form_layout.addRow('Price:', self.add_price_input)
+        self.form_layout.addRow('Initial Unit:', self.add_unit_input)
         self.form_layout.addRow('Initial Stock:', self.add_stock_input)
+        self.form_layout.addRow('Unit Price:', self.add_unit_price)
         self.add_button = QPushButton('Add New Product')
         self.add_button.clicked.connect(self.add_product)
         self.form_layout.addRow(self.add_button)
 
         # Update product form
         self.update_name_input = QLineEdit()
-        self.update_price_input = QLineEdit()
+        self.update_unit_input = QLineEdit()
         self.update_stock_input = QLineEdit()
+        self.update_price_input = QLineEdit()
         self.form_layout.addRow('Product Name:', self.update_name_input)
-        self.form_layout.addRow('New Price:', self.update_price_input)
+        self.form_layout.addRow('New Unit:', self.update_unit_input)
         self.form_layout.addRow('New Stock:', self.update_stock_input)
+        self.form_layout.addRow('New Unit Price:', self.update_price_input)
         self.update_button = QPushButton('Update Product')
         self.update_button.clicked.connect(self.update_product)
         self.form_layout.addRow(self.update_button)
@@ -101,7 +109,20 @@ class ElectricShopApp(QMainWindow):
         self.csv_upload_button.clicked.connect(self.upload_csv)
         self.form_layout.addRow(self.csv_upload_button)
 
+        # All over Price
+        self.all_over_price = QPushButton('All Over Price')
+        self.all_over_price.clicked.connect(self.total_price_count)
+        self.form_layout.addRow(self.all_over_price)
+
         self.layout.addLayout(self.form_layout)
+
+    def total_price_count(self):
+        with sqlite3.connect('stock_database.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT sum(total_price) FROM products;")
+            result = round(cursor.fetchone()[0],4)
+        return QMessageBox.information(self, "TOTALS", f"{result}")
+        
 
     def upload_csv(self):
         file_name, _ = QFileDialog.getOpenFileName(self, "Open CSV File", "", "CSV Files (*.csv)")
@@ -116,20 +137,22 @@ class ElectricShopApp(QMainWindow):
                 reader = csv.reader(file)
                 next(reader)  # Skip header row if present
                 for row in reader:
-                    if len(row) < 3:
+                    if len(row) < 4:
                         continue
-                    name, price, stock = row
+                    name,unit, stock, unit_price = row
                     try:
-                        price = float(price.replace(',','').strip())
-                        stock = int(stock.replace(',','').strip())
+                        unit_price = float(unit_price.replace(',','').strip())
+                        unit=str(unit)
+                        stock = int(float(str(stock).replace(',','').strip()))
+                        total_price=round(unit_price*stock,4)
                         cursor.execute("SELECT stock FROM products WHERE name = ?", (name,))
                         existing_product = cursor.fetchone()
-
                         if existing_product:
-                            cursor.execute("UPDATE products SET price = ?, stock = stock + ? WHERE name = ?", (price, stock, name))
+                            cursor.execute("UPDATE products SET total_price= ?,unit_price = ?, stock = stock + ?,unit = ? WHERE name = ?", (total_price,unit_price, stock, unit, name))
                         else:
-                            cursor.execute("INSERT INTO products (name, price, stock) VALUES (?, ?, ?)", (name, price, stock))
-                    except ValueError:
+                            cursor.execute("INSERT INTO products (name, unit, stock, unit_price,total_price) VALUES (?, ?, ?, ?, ?)", (name, unit, stock, unit_price, total_price))
+                    except ValueError as v:
+                        print(v)
                         continue  # Skip invalid rows
             QMessageBox.information(self, "Success", "CSV data uploaded successfully.")
         except ValueError as v:
@@ -162,35 +185,40 @@ class ElectricShopApp(QMainWindow):
     def refresh_stock(self):
         conn = sqlite3.connect('stock_database.db')
         cursor = conn.cursor()
-        cursor.execute("SELECT name, price, stock FROM products")
+        cursor.execute("SELECT name, unit, stock, unit_price, total_price FROM products")
         products = cursor.fetchall()
         conn.close()
 
         self.stock_table.setRowCount(len(products))
         for i, product in enumerate(products):
             self.stock_table.setItem(i, 0, QTableWidgetItem(product[0]))
-            self.stock_table.setItem(i, 1, QTableWidgetItem(f"{product[1]:.2f}"))
+            self.stock_table.setItem(i, 1, QTableWidgetItem(product[1]))
             self.stock_table.setItem(i, 2, QTableWidgetItem(str(product[2])))
+            self.stock_table.setItem(i, 3, QTableWidgetItem(f"{product[3]:.2f}"))
+            self.stock_table.setItem(i, 4, QTableWidgetItem(f"{product[4]}"))
 
     def update_product(self):
         name = self.update_name_input.text()
-        new_price = self.update_price_input.text()
+        new_unit = self.update_unit_input.text()
         new_stock = self.update_stock_input.text()
+        new_unit_price = self.update_price_input.text()
 
-        if not name or not new_price or not new_stock:
+        if not name or not new_unit_price or not new_stock or not new_unit:
             QMessageBox.warning(self, "Input Error", "Please fill in all fields to update the product.")
             return
 
         try:
-            new_price = float(new_price)
+            new_unit=str(new_unit)
             new_stock = int(new_stock)
+            new_unit_price = float(new_unit_price)
+            total_price=round(new_unit_price*new_stock,4)
         except ValueError:
             QMessageBox.warning(self, "Input Error", "Price must be a number and stock must be an integer.")
             return
 
         conn = sqlite3.connect('stock_database.db')
         cursor = conn.cursor()
-        cursor.execute("UPDATE products SET price = ?, stock = ? WHERE name = ?", (new_price, new_stock, name))
+        cursor.execute("UPDATE products SET total_price= ?, unit_price = ?, stock = ?, unit= ? WHERE name = ?", (total_price,new_unit_price, new_stock, new_unit, name))
         conn.commit()
 
         if cursor.rowcount == 0:
@@ -217,7 +245,7 @@ class ElectricShopApp(QMainWindow):
 
         conn = sqlite3.connect('stock_database.db')
         cursor = conn.cursor()
-        cursor.execute("SELECT stock FROM products WHERE name = ?", (name,))
+        cursor.execute("SELECT stock,unit_price FROM products WHERE name = ?", (name,))
         result = cursor.fetchone()
 
         if not result:
@@ -229,7 +257,8 @@ class ElectricShopApp(QMainWindow):
             if new_stock < 0:
                 QMessageBox.warning(self, "Error", "*Product stock not updated properly*")
             else:
-                cursor.execute("UPDATE products SET stock = ? WHERE name = ?", (new_stock, name))
+                total_price=round(result[1]*new_stock,4)
+                cursor.execute("UPDATE products SET total_price= ? ,stock = ? WHERE name = ?", (total_price,new_stock, name))
 
             conn.commit()
             QMessageBox.information(self, "Success", "Product sold successfully.")
@@ -239,18 +268,19 @@ class ElectricShopApp(QMainWindow):
 
     def add_product(self):
         name = self.add_name_input.text().strip()
-        price = self.add_price_input.text().strip()
+        unit = self.add_unit_input.text().strip()
         stock = self.add_stock_input.text().strip()
+        unit_price = self.add_unit_price.text().strip()
 
-        if not name or not price or not stock:
+        if not name or not unit_price or not stock:
             QMessageBox.warning(self, "Input Error", "Please fill in all fields to add the product.")
             return
 
         try:
-            price = float(price)
+            unit_price = float(unit_price)
             stock = int(stock)
-            if price < 0 or stock < 0:
-                price=stock=0
+            if unit_price < 0 or stock < 0:
+                unit_price=stock=0
         except ValueError:
             QMessageBox.warning(self, "Input Error", "Price must be a number and stock must be an integer.")
             return
@@ -264,7 +294,8 @@ class ElectricShopApp(QMainWindow):
         if existing_product:
             QMessageBox.warning(self, "Product Exists", "This product is already available in the inventory. If needed, please update the stock and price.")
         else:
-            cursor.execute("INSERT INTO products (name, price, stock) VALUES (?, ?, ?)", (name, price, stock))
+            total_price=round(unit_price*stock,4)
+            cursor.execute("INSERT INTO products (name, unit, stock, unit_price,total_price) VALUES (?, ?, ?, ?, ?)", (name, unit, stock, unit_price,total_price))
             QMessageBox.information(self, "Success", "Product added successfully.")
 
         conn.commit()
@@ -276,25 +307,33 @@ class ElectricShopApp(QMainWindow):
         search_term = self.search_bar.text().strip()
         conn = sqlite3.connect('stock_database.db')
         cursor = conn.cursor()
-        cursor.execute("SELECT name, price, stock FROM products WHERE name LIKE ?", ('%' + search_term + '%',))
+        cursor.execute("SELECT name, unit, stock, unit_price,total_price FROM products WHERE name LIKE ?", ('%' + search_term + '%',))
         products = cursor.fetchall()
         conn.close()
 
         self.stock_table.setRowCount(len(products))
         for i, product in enumerate(products):
+            # self.stock_table.setItem(i, 0, QTableWidgetItem(product[0]))
+            # self.stock_table.setItem(i, 1, QTableWidgetItem(f"{product[1]:.2f}"))
+            # self.stock_table.setItem(i, 2, QTableWidgetItem(str(product[2])))
             self.stock_table.setItem(i, 0, QTableWidgetItem(product[0]))
-            self.stock_table.setItem(i, 1, QTableWidgetItem(f"{product[1]:.2f}"))
+            self.stock_table.setItem(i, 1, QTableWidgetItem(product[1]))
             self.stock_table.setItem(i, 2, QTableWidgetItem(str(product[2])))
-
-    def prev_page(self):
-        if self.page > 1:
-            self.page -= 1
-            self.refresh_stock()
-
-    def next_page(self):
-        self.page += 1
-        self.refresh_stock()
-
+            self.stock_table.setItem(i, 3, QTableWidgetItem(f"{product[3]:.2f}"))
+            self.stock_table.setItem(i, 4, QTableWidgetItem(f"{product[4]}"))
+    
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Up:
+            self.focusPreviousChild()  # Move to the previous widget
+        elif event.key() == Qt.Key_Down:
+            self.focusNextChild()  # Move to the next widget
+        elif event.key() == Qt.Key_Left:
+            self.focusPreviousChild()  # Treat Left Arrow as moving to the previous widget
+        elif event.key() == Qt.Key_Right:
+            self.focusNextChild()  # Treat Right Arrow as moving to the next widget
+        else:
+            super().keyPressEvent(event)  # Default behavior for other keys
+            
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     mainWin = ElectricShopApp()
